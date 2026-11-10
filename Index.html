@@ -1,0 +1,192 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TNRewards | Earn Rewards</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box}
+body{
+ margin:0;
+ font-family:Arial,sans-serif;
+ background:#071426;
+ color:white;
+ min-height:100vh;
+ display:flex;
+ justify-content:center;
+ align-items:center;
+ padding:20px
+}
+.container{
+ width:100%;max-width:420px;
+ background:#10243c;
+ padding:28px;border-radius:20px;
+ box-shadow:0 15px 40px #0005
+}
+.logo{font-size:30px;font-weight:bold;color:#49d9c1}
+.subtitle{color:#a9bfd5;margin-bottom:25px}
+h2{margin-bottom:8px}
+input{
+ width:100%;padding:14px;margin:9px 0;
+ border:1px solid #36516c;border-radius:9px;
+ background:#071426;color:white;font-size:16px
+}
+button{
+ width:100%;padding:14px;margin-top:12px;
+ border:0;border-radius:9px;
+ background:#36cdb3;color:#062039;
+ font-weight:bold;font-size:16px
+}
+.switch{color:#49d9c1;text-align:center;cursor:pointer;margin-top:20px}
+.message{font-size:14px;color:#ffcc80;margin-top:14px}
+.hidden{display:none}
+.balance{font-size:32px;color:#49d9c1;font-weight:bold}
+.card{background:#19334f;padding:16px;border-radius:12px;margin-top:18px}
+</style>
+</head>
+<body>
+<div class="container">
+ <div class="logo">TNRewards</div>
+ <p class="subtitle">Your rewards journey starts here.</p>
+
+ <div id="auth">
+  <div id="signup">
+   <h2>Create account</h2>
+   <input id="name" placeholder="Your full name">
+   <input id="email" type="email" placeholder="Email address">
+   <input id="password" type="password" placeholder="Create password">
+   <button onclick="register()">Create my account</button>
+   <p class="switch" onclick="showLogin()">Already registered? Log in</p>
+  </div>
+
+  <div id="login" class="hidden">
+   <h2>Welcome back</h2>
+   <input id="loginEmail" type="email" placeholder="Email address">
+   <input id="loginPassword" type="password" placeholder="Password">
+   <button onclick="login()">Log in</button>
+   <p class="switch" onclick="showSignup()">Create a new account</p>
+  </div>
+ </div>
+
+ <div id="dashboard" class="hidden">
+  <h2>Welcome to TNRewards!</h2>
+  <p id="memberName"></p>
+  <div class="card">
+   <p>Your points balance</p>
+   <div class="balance" id="points">0 points</div>
+  </div>
+  <div class="card">
+   <h3>Advertisement tasks</h3>
+   <p>Reward opportunities will appear here when available.</p>
+  </div>
+  <button onclick="logout()">Log out</button>
+ </div>
+ <div id="message" class="message"></div>
+</div>
+
+<script>
+// Replace these two placeholders with your Supabase credentials.
+const SUPABASE_URL = "YOUR_SUPABASE_PROJECT_URL";
+const SUPABASE_KEY = "YOUR_SUPABASE_PUBLISHABLE_OR_ANON_KEY";
+
+const client = window.supabase.createClient(
+ SUPABASE_URL, SUPABASE_KEY
+);
+
+const msg = document.getElementById("message");
+
+function message(text){
+ msg.textContent = text;
+}
+
+function showLogin(){
+ document.getElementById("signup").classList.add("hidden");
+ document.getElementById("login").classList.remove("hidden");
+ message("");
+}
+
+function showSignup(){
+ document.getElementById("login").classList.add("hidden");
+ document.getElementById("signup").classList.remove("hidden");
+ message("");
+}
+
+async function register(){
+ const name = document.getElementById("name").value.trim();
+ const email = document.getElementById("email").value.trim();
+ const password = document.getElementById("password").value;
+
+ if(!name || !email || password.length < 8){
+  message("Enter your name, valid email and password of at least 8 characters.");
+  return;
+ }
+
+ message("Creating your account...");
+
+ const {data,error} = await client.auth.signUp({
+  email,password,
+  options:{data:{display_name:name}}
+ });
+
+ if(error){message(error.message);return;}
+
+ if(data.session){
+  await loadDashboard(data.session.user);
+ }else{
+  message("Account created! Check your email to confirm registration, then log in.");
+ }
+}
+
+async function login(){
+ const email = document.getElementById("loginEmail").value.trim();
+ const password = document.getElementById("loginPassword").value;
+
+ message("Logging in...");
+
+ const {data,error} = await client.auth.signInWithPassword({
+  email,password
+ });
+
+ if(error){message(error.message);return;}
+
+ await loadDashboard(data.user);
+}
+
+async function loadDashboard(user){
+ document.getElementById("auth").classList.add("hidden");
+ document.getElementById("dashboard").classList.remove("hidden");
+ document.getElementById("memberName").textContent =
+  user.user_metadata.display_name || user.email;
+
+ const {data,error} = await client
+  .from("wallet_transactions")
+  .select("amount_points")
+  .eq("user_id",user.id);
+
+ if(error){
+  document.getElementById("points").textContent="Unavailable";
+ }else{
+  const total = data.reduce((sum,item)=>sum+item.amount_points,0);
+  document.getElementById("points").textContent=total+" points";
+ }
+ message("");
+}
+
+async function logout(){
+ await client.auth.signOut();
+ document.getElementById("dashboard").classList.add("hidden");
+ document.getElementById("auth").classList.remove("hidden");
+ showLogin();
+}
+
+async function restoreSession(){
+ const {data} = await client.auth.getSession();
+ if(data.session) await loadDashboard(data.session.user);
+}
+
+restoreSession();
+</script>
+</body>
+</html>
